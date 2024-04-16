@@ -1,0 +1,70 @@
+version: '3.4'
+
+services:
+  postgres_db:
+    container_name: postgres_db
+    image:
+      postgres:13.4-alpine
+    ports:
+      - "5432:5432"
+    logging:
+      driver: "json-file"
+      options:
+        max-file: "3"
+        max-size: "20m"
+    env_file:
+      - envs/database.env
+    restart:
+      on-failure
+    networks:
+      - pgdb
+
+  backend:
+    container_name: backend
+    build:
+      context: backend/
+    command: bash -c "python /app/manage.py makemigrations api && python /app/manage.py migrate --noinput && python /app/manage.py runserver 0.0.0.0:8000"
+    volumes:
+      - ./backend/:/app
+    ports:
+      - 8000:8000
+    depends_on:
+      - postgres_db
+    env_file:
+      - envs/database.env
+    restart:
+      on-failure
+    networks:
+      - pgdb
+      - front_back
+
+  ml:
+    build:
+      context: ml/
+    depends_on:
+      - postgres_db
+    env_file:
+      - envs/database.env
+    restart:
+      on-failure
+    networks:
+      - pgdb
+
+  frontend:
+    build:
+      context: frontend/
+    ports:
+      - 80:80
+    depends_on:
+      - backend
+    restart:
+      on-failure
+    env_file:
+      - envs/frontend.env
+    networks:
+      - front_back
+
+
+networks:
+  pgdb:
+  front_back:
